@@ -13,25 +13,33 @@
 
 import GoogleMaps
 import UIKit
+import Combine
 
+@available(iOS 13.0, *)
 class PanoramaViewController: UIViewController {
 
   private let markerLocation = CLLocationCoordinate2D(latitude: 40.761455, longitude: -73.977814)
   private var panoramaView = GMSPanoramaView(frame: .zero)
   private var statusLabel = UILabel(frame: .zero)
   private var configured = false
+  private var step = 0
+  @Published private var panoIsRendered = false
+  private var subscriptions = Set<AnyCancellable>()
+  private var isRenderedTimer: Timer?
 
   override func loadView() {
     navigationController?.navigationBar.isTranslucent = false
-    panoramaView.moveNearCoordinate(.newYork)
+    navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Prove bug", style: .plain, target: self, action: #selector(reproduceBug))
+
     panoramaView.backgroundColor = .gray
     panoramaView.delegate = self
     view = panoramaView
 
-    statusLabel.alpha = 0.0
+    statusLabel.alpha = 0.8
     statusLabel.backgroundColor = .blue
     statusLabel.textColor = .white
     statusLabel.textAlignment = .center
+    statusLabel.text = "Tap 'Prove bug' multiple times. Green = rendered, Red = NOT rendered"
     view.addSubview(statusLabel)
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -40,12 +48,37 @@ class PanoramaViewController: UIViewController {
       statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       statusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
     ])
+
+    $panoIsRendered.dropFirst().sink { [weak self] value in
+      self?.statusLabel.backgroundColor = value ? .green : .blue
+      self?.statusLabel.textColor = value ? .black : .white
+
+      if value {
+        self?.isRenderedTimer?.invalidate()
+      } else {
+        // Change color of status to red if didFinishRendering wasn't called in 4 seconds
+        self?.isRenderedTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false, block: { [weak self] _ in
+          self?.statusLabel.backgroundColor = .red
+        })
+      }
+    }
+    .store(in: &subscriptions)
+  }
+
+  @objc func reproduceBug() {
+    step += 1
+
+    if step % 2 == 0 {
+      panoramaView.moveNearCoordinate(.sydney)
+    } else {
+      panoramaView.moveNearCoordinate(.newYork)
+    }
   }
 }
 
+@available(iOS 13.0, *)
 extension PanoramaViewController: GMSPanoramaViewDelegate {
   func panoramaView(_ panoramaView: GMSPanoramaView, didMove camera: GMSPanoramaCamera) {
-    print("Camera:\(camera.orientation.heading), \(camera.orientation.pitch), \(camera.zoom)")
   }
 
   func panoramaView(_ view: GMSPanoramaView, didMoveTo panorama: GMSPanorama?) {
@@ -59,11 +92,16 @@ extension PanoramaViewController: GMSPanoramaViewDelegate {
   }
 
   func panoramaViewDidStartRendering(_ panoramaView: GMSPanoramaView) {
-    statusLabel.alpha = 0.8
-    statusLabel.text = "Rendering"
+    statusLabel.text = "Rendering \(panoramaView.panorama?.panoramaID ?? "")"
   }
 
   func panoramaViewDidFinishRendering(_ panoramaView: GMSPanoramaView) {
-    statusLabel.alpha = 0
+    statusLabel.text = "Rendering \(panoramaView.panorama?.panoramaID ?? "") done"
+    panoIsRendered = true
+  }
+
+  func panoramaView(_ view: GMSPanoramaView, didMoveTo panorama: GMSPanorama, nearCoordinate coordinate: CLLocationCoordinate2D) {
+    statusLabel.text = "Did move to panorama \(panorama.panoramaID)"
+    panoIsRendered = false
   }
 }

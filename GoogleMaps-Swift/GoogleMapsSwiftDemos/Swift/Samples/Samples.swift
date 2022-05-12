@@ -64,10 +64,16 @@ enum Samples {
       Sample(
         viewControllerClass: GradientPolylinesViewController.self, title: "Gradient Polylines"),
     ]
-    let panoramaSamples = [
-      Sample(viewControllerClass: PanoramaViewController.self, title: "Street View"),
-      Sample(viewControllerClass: FixedPanoramaViewController.self, title: "Fixed Street View"),
-    ]
+
+    var panoramaSamples: [Sample] = []
+
+    if #available(iOS 13.0, *) {
+      panoramaSamples = [
+        Sample(viewControllerClass: PanoramaViewController.self, title: "Street View"),
+        Sample(viewControllerClass: FixedPanoramaViewController.self, title: "Fixed Street View"),
+      ]
+    }
+
     let cameraSamples = [
       Sample(viewControllerClass: FitBoundsViewController.self, title: "Fit Bounds"),
       Sample(viewControllerClass: CameraViewController.self, title: "Camera Animation"),
